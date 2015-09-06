@@ -24,7 +24,14 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-(ql:quickload :cgen)     ;; or :cxxgen, etc.
+
+;; To run this code in slime execute the following 4 sexpressions
+;; using C-c C-c. Then compile the whole file with C-c C-k. This will
+;; declare all the macros but fails in the last sexpression with the
+;; whole code. Call this last sexpression with C-M-x to generate
+;; clfft.c.
+
+(ql:quickload :cgen) ;; or :cxxgen, etc.
 (in-package :cg-user)    ;; cl-user equivalent with c-mera environment
 (switch-reader)          ;; optional for prototyping
 
@@ -75,22 +82,25 @@
      (cl-funcall clfftTeardown)))
 
 (defmacro with-fopen ((fd fn mode) &body body)
-  "Open a file with fopen and close it after body has been
-processed. The first argument is a variable returning the FILE
-handle.
-Example: 
-;;  (with-fopen (f "Hello World" "w")
-;;    (funcall fputs f "Hello World!\\n"))
-expands into:
-;; {
-;; 	FILE *f = fopen("Hello World", "w");
-;; 	if (NULL == f) {
-;; 		printf("error fopen Hello World.");
-;; 	}
-;; 	fputs(f, "Hello World!\n");
-;; 	fclose(f);
-;; }
-" 
+  ;; Note: I commented this doc string because the parenthesis seem to
+  ;; confuse paredit and the quotes the lisp reader.
+  
+;;   "Open a file with fopen and close it after body has been
+;; processed. The first argument is a variable returning the FILE
+;; handle.
+;; Example: 
+;; ;;  (with-fopen (f "Hello World" "w")
+;; ;;    (funcall fputs f "Hello World!\\n"))
+;; expands into:
+;; ;; {
+;; ;; 	FILE *f = fopen("Hello World", "w");
+;; ;; 	if (NULL == f) {
+;; ;; 		printf("error fopen Hello World.");
+;; ;; 	}
+;; ;; 	fputs(f, "Hello World!\n");
+;; ;; 	fclose(f);
+;; ;; }
+;; " 
   `(block
        (decl ((FILE* ,fd (funcall fopen ,fn ,mode)))
 	 (if (== NULL ,fd)
@@ -101,27 +111,27 @@ expands into:
 (defmacro with-copen ((fd fn &key (mode O_RDONLY) (position 0)
 			  (permission #o644) ;; note: octal number
 			  ) &body body)
-  "Open a file with open, optionally seek to position and close after
-body has been processed. The first variable returns a file
-descriptor. 
-Example:
-;; (decl ((unsigned char a[16]))
-;;   (with-copen (fd "out.raw" :mode O_WRONLY)
-;;     (if (!= 16 (funcall write fd a 16))
-;; 	(funcall printf "error didn't write enough bytes\\n"))))
-Expands into:
-;; unsigned char a[16];
-;; {
-;; 	int fd = open("out.raw", O_WRONLY, 420);
-;; 	if (-1 == fd) {
-;; 		printf("error open out.raw.\n");
-;; 	}
-;; 	if (16 != write(fd, a, 16)) {
-;; 		printf("error didn't write enough bytes\n");
-;; 	}
-;; 	close(fd);
-;; }
-"
+;;   "Open a file with open, optionally seek to position and close after
+;; body has been processed. The first variable returns a file
+;; descriptor. 
+;; Example:
+;; ;; (decl ((unsigned char a[16]))
+;; ;;   (with-copen (fd "out.raw" :mode O_WRONLY)
+;; ;;     (if (!= 16 (funcall write fd a 16))
+;; ;; 	(funcall printf "error didn't write enough bytes\\n"))))
+;; Expands into:
+;; ;; unsigned char a[16];
+;; ;; {
+;; ;; 	int fd = open("out.raw", O_WRONLY, 420);
+;; ;; 	if (-1 == fd) {
+;; ;; 		printf("error open out.raw.\n");
+;; ;; 	}
+;; ;; 	if (16 != write(fd, a, 16)) {
+;; ;; 		printf("error didn't write enough bytes\n");
+;; ;; 	}
+;; ;; 	close(fd);
+;; ;; }
+;; "
   `(block
        (decl ((int ,fd (funcall open ,fn ,mode ,permission)))
 	 (if (== -1 ,fd)
@@ -132,19 +142,19 @@ Expands into:
 	 (funcall close ,fd))))
 
 (defmacro with-gpu-malloc (mallocs &body body)
-  "Allocate OpenCL Buffers on the GPU. Each of the array declarations
-  are parsed like this:
-  ;; (name ctx  len  &key (mode CL_MEM_READ_WRITE)  (host-ptr NULL))
-  Example:
-  ;; (with-gpu-malloc ((frame ctx n :mode CL_MEM_READ_ONLY  :host-ptr cpu_frame))
-  ;;   ... code ...)
-  Expands into:
-  ;; cl_mem frame = clCreateBuffer (ctx, CL_MEM_READ_ONLY,
-  ;; 				    n, cpu_frame, &err);
-  ;; .. error check ..
-  ;; .. code ..
-  ;; clReleaseMemObject (frame);
-"
+;;   "Allocate OpenCL Buffers on the GPU. Each of the array declarations
+;;   are parsed like this:
+;;   ;; (name ctx  len  &key (mode CL_MEM_READ_WRITE)  (host-ptr NULL))
+;;   Example:
+;;   ;; (with-gpu-malloc ((frame ctx n :mode CL_MEM_READ_ONLY  :host-ptr cpu_frame))
+;;   ;;   ... code ...)
+;;   Expands into:
+;;   ;; cl_mem frame = clCreateBuffer (ctx, CL_MEM_READ_ONLY,
+;;   ;; 				    n, cpu_frame, &err);
+;;   ;; .. error check ..
+;;   ;; .. code ..
+;;   ;; clReleaseMemObject (frame);
+;; "
   `(block
        (decl (,@(loop for e in mallocs collect
 		     (destructuring-bind (name &rest rest) e
@@ -160,21 +170,21 @@ Expands into:
 			   `(cl-funcall clReleaseMemObject ,name)))))))
 
 (defmacro with-cpu-malloc (mallocs &body body)
-  ;; Note: I commented source in this doc string because the parenthesis seem to confuse paredit.
-  "This macro allocates pointers and also declares .._len variables
-  containing their length.
-  ;; (with-cpu-malloc ((float fft_output 3)
-  ;; 		  (float pointer))
-  ;;   ...code...)
+  
+  ;; "This macro allocates pointers and also declares .._len variables
+  ;; containing their length.
+  ;; ;; (with-cpu-malloc ((float fft_output 3)
+  ;; ;; 		  (float pointer))
+  ;; ;;   ...code...)
 
-  ;; int fft_output_len=3*sizeof(float);
-  ;; float*fft_output= (float*) malloc (fft_output_len);
-  ;; int pointer_output_len=1*sizeof (float);
-  ;; float*pointer= (float*) malloc (pointer_output_len);
-  ;; ...code...
-  ;; free (fft_output);
-  ;; free (pointer)
-  "
+  ;; ;; int fft_output_len=3*sizeof(float);
+  ;; ;; float*fft_output= (float*) malloc (fft_output_len);
+  ;; ;; int pointer_output_len=1*sizeof (float);
+  ;; ;; float*pointer= (float*) malloc (pointer_output_len);
+  ;; ;; ...code...
+  ;; ;; free (fft_output);
+  ;; ;; free (pointer)
+  ;; "
   `(decl (,@(lisp
 	     (let ((res nil))
 	       (loop for e in mallocs do
@@ -202,106 +212,106 @@ Expands into:
 
 (let ((NXval 128)
       (NTval 1024))
- (with-open-file (*standard-output* "clfft.c"
-				    :direction :output
-				    :if-exists :supersede
-				    :if-does-not-exist :create)
-   (loop for e in
-	(list 
-	 (include <stdlib.h>)
-	 (include <stdio.h>)
-	 (include <unistd.h>)
-	 (include <sys/types.h>)
-	 (include <stdint.h>)
-	 (include <sys/stat.h>)
-	 (include <fcntl.h>)
-	 (include <complex.h>)
-	 (include <math.h>)
-	 (include <string.h>)
-	 (include <clFFT.h>)
-	     
-	 (typedef  |COMPLEX FLOAT| complex_float)
+  (with-open-file (*standard-output* "clfft.c"
+				     :direction :output
+				     :if-exists :supersede
+				     :if-does-not-exist :create)
+    (loop for e in
+	 (list 
+	  (include <stdlib.h>)
+	  (include <stdio.h>)
+	  (include <unistd.h>)
+	  (include <sys/types.h>)
+	  (include <stdint.h>)
+	  (include <sys/stat.h>)
+	  (include <fcntl.h>)
+	  (include <complex.h>)
+	  (include <math.h>)
+	  (include <string.h>)
+	  (include <clFFT.h>)
+	  
+	  (typedef  |FLOAT COMPLEX| complex_float)
 
-	 (function main () -> int
-	   (decl ((cl_platform_id platform 0)
-		  (cl_device_id device 0)
-		  (cl_context_properties props[3])
-		  (cl_context ctx 0)
-		  (cl_command_queue queue 0))
-	     (cl-funcall clGetPlatformIDs 1 &platform NULL)
-	     (cl-funcall clGetDeviceIDs platform
-			 CL_DEVICE_TYPE_CPU 1
-			 &device NULL
-			 )
-	     (fill-array props (CL_CONTEXT_PLATFORM
-				(cast cl_context_properties platform) 0))
-	     (cl-funcall-end ctx
-			     clCreateContext props 1 &device
-			     NULL NULL)
-		 
-	     (cl-funcall-end queue
-			     clCreateCommandQueue ctx device 0)
-	     (with-clfft
-	       (decl ((const unsigned int NX (lisp NXval))
-		      (const unsigned int NT (lisp NTval))
-		      (const unsigned int FRAME_SAMPLES (* NX NT))
-		      (const unsigned int FFT_OUTPUT_SAMPLES (* (+ 1 (/ NX 2)) NT))
-		      (clfftPlanHandle planHandle)
-		      (clfftDim dim CLFFT_2D)
-		      (size_t clLengths[2])
-		      (size_t clInStrides[2])
-		      (size_t clOutStrides[2]))
-		 (fill-array clLengths (NX NT))
-		 (cl-funcall clfftCreateDefaultPlan &planHandle ctx dim clLengths)
-		 (fill-array clInStrides (1 NX)) (cl-funcall clfftSetPlanInStride planHandle dim clInStrides)
-		 (fill-array clOutStrides (1 (+ 1 (/ NX 2)))) (cl-funcall clfftSetPlanOutStride planHandle dim clOutStrides)
-		 (with-cpu-malloc ((uint16_t cpu_u16_input_frame FRAME_SAMPLES)
-				   (float cpu_icsf_input_frame FRAME_SAMPLES)
-				   (complex_float cpu_icsf_fft_output FFT_OUTPUT_SAMPLES)
-				   (float cpu_sf_fft_output FFT_OUTPUT_SAMPLES))
-		       
-		   (cl-funcall clfftSetPlanPrecision planHandle CLFFT_SINGLE)
-		   (cl-funcall clfftSetLayout planHandle
-			       CLFFT_REAL CLFFT_HERMITIAN_INTERLEAVED)
-		   (cl-funcall clfftSetResultLocation planHandle CLFFT_OUTOFPLACE)
-		   (cl-funcall clfftBakePlan planHandle 1 &queue NULL NULL)
-		      
-		   (with-fopen (gp "cmdfifo" "w")
-		     (funcall fprintf gp "set palette cubehelix; set cbrange [*:*];"))
+	  (function main () -> int
+	    (decl ((cl_platform_id platform 0)
+		   (cl_device_id device 0)
+		   (cl_context_properties props[3])
+		   (cl_context ctx 0)
+		   (cl_command_queue queue 0))
+	      (cl-funcall clGetPlatformIDs 1 &platform NULL)
+	      (cl-funcall clGetDeviceIDs platform
+			  CL_DEVICE_TYPE_CPU 1
+			  &device NULL
+			  )
+	      (fill-array props (CL_CONTEXT_PLATFORM
+				 (cast cl_context_properties platform) 0))
+	      (cl-funcall-end ctx
+			      clCreateContext props 1 &device
+			      NULL NULL)
+	      
+	      (cl-funcall-end queue
+			      clCreateCommandQueue ctx device 0)
+	      (with-clfft
+		(decl ((const unsigned int NX (lisp NXval))
+		       (const unsigned int NT (lisp NTval))
+		       (const unsigned int FRAME_SAMPLES (* NX NT))
+		       (const unsigned int FFT_OUTPUT_SAMPLES (* (+ 1 (/ NX 2)) NT))
+		       (clfftPlanHandle planHandle)
+		       (clfftDim dim CLFFT_2D)
+		       (size_t clLengths[2])
+		       (size_t clInStrides[2])
+		       (size_t clOutStrides[2]))
+		  (fill-array clLengths (NX NT))
+		  (cl-funcall clfftCreateDefaultPlan &planHandle ctx dim clLengths)
+		  (fill-array clInStrides (1 NX)) (cl-funcall clfftSetPlanInStride planHandle dim clInStrides)
+		  (fill-array clOutStrides (1 (+ 1 (/ NX 2)))) (cl-funcall clfftSetPlanOutStride planHandle dim clOutStrides)
+		  (with-cpu-malloc ((uint16_t cpu_u16_input_frame FRAME_SAMPLES)
+				    (float cpu_icsf_input_frame FRAME_SAMPLES)
+				    (complex_float cpu_icsf_fft_output FFT_OUTPUT_SAMPLES)
+				    (float cpu_sf_fft_output FFT_OUTPUT_SAMPLES))
+		    
+		    (cl-funcall clfftSetPlanPrecision planHandle CLFFT_SINGLE)
+		    (cl-funcall clfftSetLayout planHandle
+				CLFFT_REAL CLFFT_HERMITIAN_INTERLEAVED)
+		    (cl-funcall clfftSetResultLocation planHandle CLFFT_OUTOFPLACE)
+		    (cl-funcall clfftBakePlan planHandle 1 &queue NULL NULL)
+		    
+		    (with-fopen (gp "cmdfifo" "w")
+		      (funcall fprintf gp "set palette cubehelix; set cbrange [*:*];"))
 
-		   (with-gpu-malloc ((gpu_icsf_input_frame ctx cpu_icsf_input_frame_len :mode CL_MEM_READ_ONLY)
-				     (gpu_icsf_fft_output ctx cpu_icsf_fft_output_len :mode CL_MEM_READ_WRITE))
-		     (for ((unsigned int count 0) (< count 100) count++)
-		       (with-copen (fdat "../dop_128_1024_1024.dat"
-					 :position (* count cpu_u16_input_frame_len))
-			 (if (!= cpu_u16_input_frame_len
-				 (funcall read fdat cpu_u16_input_frame cpu_u16_input_frame_len))
-			     (funcall printf "error read not enough bytes\\n")))
-		       (for ((unsigned int i 0) (< i FRAME_SAMPLES) i++)
-			 (set (aref cpu_icsf_input_frame i)
-			      (- (aref cpu_u16_input_frame i) 2048.0)))
-		       (cl-funcall clEnqueueWriteBuffer queue gpu_icsf_input_frame CL_TRUE
-				   0 cpu_icsf_input_frame_len cpu_icsf_input_frame 0 NULL NULL)
-		       (cl-funcall clfftEnqueueTransform planHandle CLFFT_FORWARD 1
-				   (addr-of queue) 0 NULL NULL &gpu_icsf_input_frame &gpu_icsf_fft_output NULL)
-		       (funcall usleep 16000)
-		       (cl-funcall clFinish queue)
-		       (cl-funcall clEnqueueReadBuffer queue gpu_icsf_fft_output CL_TRUE
-				   0 cpu_icsf_fft_output_len cpu_icsf_fft_output 0 NULL NULL)
-		       (for ((unsigned int i 0) (< i FFT_OUTPUT_SAMPLES) i++)
-			 (set (aref cpu_sf_fft_output i)
-			      (funcall cabsf (aref cpu_icsf_fft_output i))))
-		       (with-copen (fd "/dev/shm/o.bin"
-				       :mode (\| O_CREAT O_WRONLY))
-			 (if (!= cpu_sf_fft_output_len
-				 (funcall write fd cpu_sf_fft_output cpu_sf_fft_output_len))
-			     (funcall printf "error wrote not enough bytes\\n")))
-		       (with-fopen (gp "cmdfifo" "w")
-			 (funcall fputs
-				  (lisp (format nil "plot \\\"/dev/shm/o.bin\\\" binary array=~dx~d format=\\\"%float32\\\" using 1 with image\\n"
-						(+ 1 (floor NXval 2)) NTval))
-				  gp)))))))
-	     (return 0))))
-      do
-	(simple-print e))))
+		    (with-gpu-malloc ((gpu_icsf_input_frame ctx cpu_icsf_input_frame_len :mode CL_MEM_READ_ONLY)
+				      (gpu_icsf_fft_output ctx cpu_icsf_fft_output_len :mode CL_MEM_READ_WRITE))
+		      (for ((unsigned int count 0) (< count 100) count++)
+			(with-copen (fdat "../dop_128_1024_1024.dat"
+					  :position (* count cpu_u16_input_frame_len))
+			  (if (!= cpu_u16_input_frame_len
+				  (funcall read fdat cpu_u16_input_frame cpu_u16_input_frame_len))
+			      (funcall printf "error read not enough bytes\\n")))
+			(for ((unsigned int i 0) (< i FRAME_SAMPLES) i++)
+			  (set (aref cpu_icsf_input_frame i)
+			       (- (aref cpu_u16_input_frame i) 2048.0)))
+			(cl-funcall clEnqueueWriteBuffer queue gpu_icsf_input_frame CL_TRUE
+				    0 cpu_icsf_input_frame_len cpu_icsf_input_frame 0 NULL NULL)
+			(cl-funcall clfftEnqueueTransform planHandle CLFFT_FORWARD 1
+				    (addr-of queue) 0 NULL NULL &gpu_icsf_input_frame &gpu_icsf_fft_output NULL)
+			(funcall usleep 16000)
+			(cl-funcall clFinish queue)
+			(cl-funcall clEnqueueReadBuffer queue gpu_icsf_fft_output CL_TRUE
+				    0 cpu_icsf_fft_output_len cpu_icsf_fft_output 0 NULL NULL)
+			(for ((unsigned int i 0) (< i FFT_OUTPUT_SAMPLES) i++)
+			  (set (aref cpu_sf_fft_output i)
+			       (funcall cabsf (aref cpu_icsf_fft_output i))))
+			(with-copen (fd "/dev/shm/o.bin"
+					:mode (\| O_CREAT O_WRONLY))
+			  (if (!= cpu_sf_fft_output_len
+				  (funcall write fd cpu_sf_fft_output cpu_sf_fft_output_len))
+			      (funcall printf "error wrote not enough bytes\\n")))
+			(with-fopen (gp "cmdfifo" "w")
+			  (funcall fputs
+				   (lisp (format nil "plot \\\"/dev/shm/o.bin\\\" binary array=~dx~d format=\\\"%float32\\\" using 1 with image\\n"
+						 (+ 1 (floor NXval 2)) NTval))
+				   gp)))))))
+	      (return 0))))
+       do
+	 (simple-print e))))
 

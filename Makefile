@@ -1,6 +1,6 @@
 # I installed clFFT into /usr/local/ you might have to adjust for your directories.
 
-CFLAGS=-std=gnu99 -I/home/martin.kielhorn/usr/include/ -march=native -pipe -Wall -Wextra
+CFLAGS=-std=gnu99 -I/home/martin.kielhorn/usr/include/   -march=native -pipe -Wall -Wextra
 # optimization
 CFLAGS+=-Ofast -fomit-frame-pointer -fopenmp
 # instrumentation for debugging
@@ -9,7 +9,9 @@ CFLAGS+=-Ofast -fomit-frame-pointer -fopenmp
 #CFLAGS+=-Og -Wa,-adhln -ggdb
 LDFLAGS=-L/usr/local/lib -lOpenCL -lclFFT -lm -Wl,-rpath=/usr/local/lib
 
-clfft: clfft.c Makefile
+all: plot
+
+clfft: clfft.c
 
 clean:
 	rm -rf clfft cmdfifo run_gnuplot
@@ -28,9 +30,10 @@ run_gnuplot:
 plot: cmdfifo run_gnuplot clfft
 	./clfft
 
-# during development I usually have slime open and emit code directly into clfft-generator.lisp
+# during development I usually have slime open and emit code directly into clfft.c
+# when finished I would turn it into cgen compatible source
 
-clfft.c: clfft-generator.lisp
-	sbcl --load clfft-generator.lisp
+#clfft.c: clfft-generator.lisp
+#	~/quicklisp/local-projects/c-mera/cgen clfft-generator.lisp > clfft.c
 
 
