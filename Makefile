@@ -1,6 +1,6 @@
 # I installed clFFT into /usr/local/ you might have to adjust for your directories.
 
-CFLAGS=-std=gnu99 -I/home/martin.kielhorn/usr/include/   -march=native -pipe -Wall -Wextra
+CFLAGS=-std=gnu99 -march=native -pipe -Wall -Wextra
 # optimization
 CFLAGS+=-Ofast -fomit-frame-pointer -fopenmp
 # instrumentation for debugging
