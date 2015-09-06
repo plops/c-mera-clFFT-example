@@ -265,8 +265,7 @@
 		  (cl-funcall clfftCreateDefaultPlan &planHandle ctx dim clLengths)
 		  (fill-array clInStrides (1 NX)) (cl-funcall clfftSetPlanInStride planHandle dim clInStrides)
 		  (fill-array clOutStrides (1 (+ 1 (/ NX 2)))) (cl-funcall clfftSetPlanOutStride planHandle dim clOutStrides)
-		  (with-cpu-malloc ((uint16_t cpu_u16_input_frame FRAME_SAMPLES)
-				    (float cpu_icsf_input_frame FRAME_SAMPLES)
+		  (with-cpu-malloc ((float cpu_sf_input_frame FRAME_SAMPLES)
 				    (complex_float cpu_icsf_fft_output FFT_OUTPUT_SAMPLES)
 				    (float cpu_sf_fft_output FFT_OUTPUT_SAMPLES))
 		    
@@ -279,28 +278,22 @@
 		    (with-fopen (gp "cmdfifo" "w")
 		      (funcall fprintf gp "set palette cubehelix; set cbrange [*:*];"))
 
-		    (with-gpu-malloc ((gpu_icsf_input_frame ctx cpu_icsf_input_frame_len :mode CL_MEM_READ_ONLY)
+		    (with-gpu-malloc ((gpu_sf_input_frame ctx cpu_sf_input_frame_len :mode CL_MEM_READ_ONLY)
 				      (gpu_icsf_fft_output ctx cpu_icsf_fft_output_len :mode CL_MEM_READ_WRITE))
 		      (for ((unsigned int count 0) (< count 100) count++)
-			(with-copen (fdat "../dop_128_1024_1024.dat"
-					  :position (* count cpu_u16_input_frame_len))
-			  (if (!= cpu_u16_input_frame_len
-				  (funcall read fdat cpu_u16_input_frame cpu_u16_input_frame_len))
-			      (funcall printf "error read not enough bytes\\n")))
-			(for ((unsigned int i 0) (< i FRAME_SAMPLES) i++)
-			  (set (aref cpu_icsf_input_frame i)
-			       (- (aref cpu_u16_input_frame i) 2048.0)))
-			(cl-funcall clEnqueueWriteBuffer queue gpu_icsf_input_frame CL_TRUE
-				    0 cpu_icsf_input_frame_len cpu_icsf_input_frame 0 NULL NULL)
+			(funcall memset (cast void* cpu_sf_input_frame) 0 cpu_sf_input_frame_len)
+			(set (aref cpu_sf_input_frame (+ 1 count)) 1.0)
+			(cl-funcall clEnqueueWriteBuffer queue gpu_sf_input_frame CL_TRUE
+				    0 cpu_sf_input_frame_len cpu_sf_input_frame 0 NULL NULL)
 			(cl-funcall clfftEnqueueTransform planHandle CLFFT_FORWARD 1
-				    (addr-of queue) 0 NULL NULL &gpu_icsf_input_frame &gpu_icsf_fft_output NULL)
+				    (addr-of queue) 0 NULL NULL &gpu_sf_input_frame &gpu_icsf_fft_output NULL)
 			(funcall usleep 16000)
 			(cl-funcall clFinish queue)
 			(cl-funcall clEnqueueReadBuffer queue gpu_icsf_fft_output CL_TRUE
 				    0 cpu_icsf_fft_output_len cpu_icsf_fft_output 0 NULL NULL)
 			(for ((unsigned int i 0) (< i FFT_OUTPUT_SAMPLES) i++)
 			  (set (aref cpu_sf_fft_output i)
-			       (funcall cabsf (aref cpu_icsf_fft_output i))))
+			       (funcall crealf (aref cpu_icsf_fft_output i))))
 			(with-copen (fd "/dev/shm/o.bin"
 					:mode (\| O_CREAT O_WRONLY))
 			  (if (!= cpu_sf_fft_output_len
