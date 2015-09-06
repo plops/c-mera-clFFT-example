@@ -10,3 +10,5 @@ Required software to run the generated program: make, gcc, some
 OpenCL ICD (I developed using the one from Intel), clFFT (the
 OpenCL initialization code is based on their example in the
 README.md), gnuplot (for realtime plotting)
+
+![Screenshot of Emacs and Gnuplot.](/screen_c-mera-example.png?raw=true "Screenshot")
